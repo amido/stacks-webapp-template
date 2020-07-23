@@ -4,15 +4,14 @@
 Please read through the [scaffolding-cli](../../docs/cli_process.md) for more
 information.
 
-## Scaffolding-cli
+## scaffolding-cli
 
-Builds a Node.js with React Server Side Rendered Webapp Template, with
-accompanying infrastruce code. All from your CLI.
+Builds opinionate boilerplate project types (CSR, SSR, .NET API, Test Frameworks...) with accompanying infrastructure code. All from your CLI.
 
 ## Getting Started
 
 We are using npx to execute and create the
-[template-cli](./packages/scaffolding-cli)
+[scaffolding-cli](./packages/scaffolding-cli)
 [npx](https://www.npmjs.com/package/npx).
 
 We are supporting and running [node@12](https://nodejs.org/en/about/releases/).

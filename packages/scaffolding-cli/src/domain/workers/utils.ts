@@ -1,9 +1,11 @@
-import { copy, move, remove, ensureDir, rename, stat, readdir, Stats} from 'fs-extra'
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-await-in-loop */
+import { copy, move, remove, ensureDir, rename, stat, readdir, Stats, mkdirp } from 'fs-extra'
 import { tmpdir } from 'os'
 import { startCase, toLower } from 'lodash'
 import { ReplaceInFileConfig, replaceInFile } from 'replace-in-file'
-import { resolve } from 'path'
-import logger from 'simple-winston-logger-abstraction'
+import { resolve, join } from 'path'
+import { logger } from 'simple-winston-logger-abstraction'
 import gitP, { SimpleGit } from 'simple-git/promise';
 import { Replacetruct, replaceGeneratedConfig } from '../config/file_mapper'
 import { FolderMap } from '../model/config'
@@ -12,27 +14,24 @@ import { CliAnswerModel } from '../model/prompt_answer'
 
 const TEMPLATES_DIRECTORY = `../../../templates/`
 
-export function copyFilter(src: string, dest: string) {
-    if (src.includes(".next") ||
-        src.includes("coverage") ||
-        src.includes(".terraform") ||
-        src.includes("dist")) {
+export function copyFilter(src: string, dest: string): boolean {
+    const templateSrc = (src.replace(join(__dirname, "../../../"), "")).toLowerCase()
+    if (templateSrc.includes(".next") ||
+        templateSrc.includes("coverage/") ||
+        templateSrc.includes(".terraform") ||
+        templateSrc.includes("dist/") ||
+        templateSrc.includes("bin/") ||
+        templateSrc.includes("obj/") ||
+        templateSrc.includes("node_modules/")) {
         return false
     } 
         return true
-    
 }
 
-export async function asyncForEach(array: Array<any>, callback: any) {
-    for (let index = 0; index < array.length; index += 1) {
-        await callback(array[index], index, array) // eslint-disable-line no-await-in-loop
-    }
-}
-
-export async function renamerRecursion(inPath: string, match: string | RegExp, replaceString: string ): Promise<void> {
+export async function renamerRecursion(inPath: string, match: string | RegExp, replaceString: string): Promise<void> {
     const files: Array<string> = await readdir(inPath)
-
-    await asyncForEach(files, async (f: string) =>  {
+    // eslint-disable-next-line no-restricted-syntax
+    for (const f of files) {
         const path = resolve(inPath, f)
         const file: Stats = await stat(path)
         const newPath = resolve(inPath, f.replace(match, replaceString))
@@ -40,7 +39,22 @@ export async function renamerRecursion(inPath: string, match: string | RegExp, r
         if (file.isDirectory()) {
             await renamerRecursion(newPath, match, replaceString);
         }
-    })
+    }
+}
+
+export async function renameJavastyle(inPath: string, match: string | RegExp, replaceString: string): Promise<void> { 
+    try {
+        const newPath = resolve(inPath, replaceString)
+        const oldPath = resolve(inPath, match as string)
+        const tmpPath = resolve(tmpdir(), `${replaceString.replace(/\//g, "-")}_${process.ppid}`)
+        // workaround to ensure all types of namespaces can be accomodated
+        await copy(oldPath, tmpPath)
+        await remove(inPath)
+        await mkdirp(newPath)
+        await copy(tmpPath, newPath)
+    } catch (ex) {
+        logger.warn(ex.message)
+    }
 }
 
 export class Utils {
@@ -97,16 +111,13 @@ export class Utils {
         }
     }
 
-    public static async fileNameReplace(srcDir: Array<string>, instructionMap: CliAnswerModel): Promise<BaseResponse> {
+    public static async fileNameReplace(srcDir: Array<string>, searchString: string, replaceString: string, javaStyle?: boolean): Promise<BaseResponse> {
         const fsResponse: BaseResponse = {} as BaseResponse
         try {
-            const replaceString = `${startCase(toLower(instructionMap.business.company))}.${startCase(toLower(instructionMap.business.project))}`
-            const match = 'xxAMIDOxx.xxSTACKSxx'
-
-            await asyncForEach(srcDir, async (dir: string) => {
-                await renamerRecursion(dir, match, replaceString)
-            })
-
+            for (const dir of srcDir) {
+                if (javaStyle) await renameJavastyle(dir, searchString, replaceString)
+                else await renamerRecursion(dir, searchString, replaceString)
+            }
             fsResponse.ok = true
             fsResponse.message = 'replaced all occurences'
             return fsResponse
@@ -125,8 +136,7 @@ export class Utils {
     public static async valueReplace(instructionMap: Array<Replacetruct>): Promise<BaseResponse> {
         const fsResponse: BaseResponse = {} as BaseResponse
         try {
-            // blanket copy templates out
-            await asyncForEach(instructionMap, async (val: Replacetruct) => { // <{src: string, dest: string}>) => {
+            for (const val of instructionMap) {
                 const options: ReplaceInFileConfig = {
                     files: val.replaceFiles,
                     from: val.replaceVals.from,
@@ -136,7 +146,7 @@ export class Utils {
                     countMatches: val.countMatches
                 }
                 await replaceInFile(options)
-            })
+            }
             fsResponse.ok = true
             fsResponse.message = 'replaced all occurences'
             return fsResponse
@@ -154,12 +164,11 @@ export class Utils {
     public static async constructOutput(instructionMap: Array<FolderMap>, newDirectory: string, tempDirectory: string): Promise<BaseResponse> {
         const fsResponse: BaseResponse = {} as BaseResponse
         try {
-            // blanket copy templates out
-            await asyncForEach(instructionMap, async (val: FolderMap) => { // <{src: string, dest: string}>) => {
+            for (const val of instructionMap) {
                 // need to use copy as move first deletes the directory and tries to insert it
                 // this will not work if you are moving a directory within the same parent
                 await move(resolve(tempDirectory, val.src), resolve(newDirectory, val.dest), { overwrite: true })
-            })
+            }
             // DELETE TEMP from this point on as we don't need it anymore
             await remove(tempDirectory)
 
@@ -183,7 +192,7 @@ export class Utils {
         const fsResponse: TempCopy = {} as TempCopy
         try {
             const newDirectory: string = resolve(process.cwd(), directoryName)
-            const tempDirectory: string = resolve(tmpdir(), directoryName)
+            const tempDirectory: string = resolve(tmpdir(), `${directoryName}_${process.ppid}`)
             // precaution to make sure no files from previous run are polluting the process
             await remove(tempDirectory)
             // blanket copy templates out

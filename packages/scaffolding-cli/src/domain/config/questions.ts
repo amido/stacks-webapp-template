@@ -1,5 +1,5 @@
-import {PromptQuestion} from "../model/prompt_question"
-import {PromptAnswer, CliAnswerModel} from "../model/prompt_answer"
+import { PromptQuestion } from "../model/prompt_question"
+import { PromptAnswer, CliAnswerModel, ProjectTypeEnum } from "../model/prompt_answer"
 
 export function computedSelection(
     cliOrConfigAnswer: PromptAnswer,
@@ -24,6 +24,12 @@ export function computedSelection(
             backendStorage:
                 cliOrConfigAnswer.terraformBackendStorage ||
                 "BACKEND_STORAGE_REPLACE_ME",
+            backendStorageRg:
+                cliOrConfigAnswer.terraformBackendStorageRg ||
+                "BACKEND_STORAGE_RG_REPLACE_ME",
+            backendStorageContainer: 
+                cliOrConfigAnswer.terraformBackendStorageContainer ||
+                "BACKEND_STORAGE_CONTAINER_REPLACE_ME",
         },
         sourceControl: {
             repoName:
@@ -33,83 +39,38 @@ export function computedSelection(
         networking: {
             baseDomain:
                 cliOrConfigAnswer.networkingBaseDomain ||
-                "REPO_NAME_REPLACE_ME",
+                "BASE_DOMAIN_NAME_REPLACE_ME",
         },
+        javaspring: {
+            namespace: cliOrConfigAnswer.javaTldNamespace ||
+            "com"
+        }
+
     } as CliAnswerModel
 }
 
-/**
- * Additional questions should be placed here as we are extending the program
- */
-export function cliQuestions(
-    defaultProjectName: string,
-): Array<PromptQuestion> {
+export const sharedInitialQs = (defaultProjectName: string): Array<PromptQuestion> => {
+    return [{
+        type: "text",
+        name: "businessCompany",
+        message: "Please provide the company name",
+        initial: "amido",
+    },
+    {
+        type: "text",
+        name: "projectName",
+        message: "Please provide the project name",
+        initial: defaultProjectName,
+    }]
+}
+
+export const sharedPostQs = (): Array<PromptQuestion> => {
     return [
-        {
-            type: "text",
-            name: "businessCompany",
-            message: "Please provide the company name",
-            initial: "amido",
-        },
-        {
-            type: "text",
-            name: "projectName",
-            message: "Please provide the project name",
-            initial: defaultProjectName,
-        },
-        {
-            type: "select",
-            name: "projectType",
-            message: "Select Project type",
-            choices: [
-                {
-                    title: "React app with server side rendering",
-                    description:
-                        "React, SSR, node, next.js, express, typescript",
-                    value: "ssr",
-                },
-                {
-                    title: "React app with client side rendering",
-                    description: "React, CSR, typescript",
-                    value: "csr",
-                },
-                {
-                    title: "API with .NET",
-                    description: "api, netcore, server, restfull",
-                    value: "netcore",
-                },
-                {
-                    title: "API with Java",
-                    description: "api, java, springboot",
-                    value: "javaspring",
-                },
-                {
-                    title: "Selenium framework with .NET",
-                    description:
-                        "automation, bddfy, xunit, webdriver, netcore, e2e, standalone",
-                    value: "testnetcoreselenium",
-                },
-                {
-                    title: "TestCafe framework with Typescript",
-                    description:
-                        "in-browser, automation, node.js, javascript, bdd, cross browser",
-                    value: "testjstestcafe",
-                },
-                {
-                    title: "Cloud platform shared services",
-                    description:
-                        "terraform, azure, gcp, gke, aks, azure devops (tfs), jenkins",
-                    value: "infra",
-                },
-            ],
-            initial: 0,
-        },
         {
             type: "text",
             name: "businessDomain",
             message: "Please provide scope (domain)",
-            description:
-                "Used for templated project naming conventions, Terraform name spacing conventions, Kubetetes configuration.",
+            description: "Used for scope with framework naming conventions.",
             initial: "menu-api",
         },
         {
@@ -129,8 +90,85 @@ export function cliQuestions(
                 },
             ],
             initial: 0,
-        },
+        }
     ]
+}
+
+/**
+ * Additional questions should be placed here as we are extending the program
+ */
+export function cliQuestions(
+    defaultProjectName: string,
+): Array<PromptQuestion> {
+
+    // let questions: Array<PromptQuestion> = Array<PromptQuestion
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    const custom: PromptQuestion = <PromptQuestion>{
+        type: "select",
+        name: "projectType",
+        message: "Select Project type",
+        choices: [
+            {
+                title: "React app with server side rendering",
+                description:
+                    "React, SSR, node, next.js, express, typescript",
+                value: "ssr",
+            },
+            {
+                title: "React app with client side rendering",
+                description: "React, CSR, typescript",
+                value: "csr",
+            },
+            {
+                title: "API with .NET",
+                description: "api, netcore, server, restfull",
+                value: "netcore",
+            },
+            {
+                title: "API with Java",
+                description: "api, java, springboot",
+                value: "javaspring",
+            },
+            {
+                title: "Cloud platform shared services",
+                description:
+                    "terraform, azure, gcp, gke, aks, azure devops (tfs), jenkins",
+                value: "infra",
+            },
+        ],
+        initial: 0,
+    }
+
+    const questions: Array<PromptQuestion> = Array<PromptQuestion>().concat(sharedInitialQs(defaultProjectName), [custom], sharedPostQs(), platformQuestions())
+    return questions
+}
+
+export function cliTestQuestions(
+    defaultProjectName: string,
+): Array<PromptQuestion> {
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    const custom: PromptQuestion = <PromptQuestion>{
+        type: "select",
+        name: "projectType",
+        message: "Select test framework",
+        choices: [
+            {
+                title: "Selenium framework with .NET",
+                description:
+                    "automation, bddfy, xunit, webdriver, netcore, e2e, standalone",
+                value: "testnetcoreselenium",
+            },
+            {
+                title: "TestCafe framework with Typescript",
+                description:
+                    "in-browser, automation, node.js, javascript, bdd, cross browser",
+                value: "testjstestcafe",
+            }
+        ],
+        initial: 0,
+    }
+    const questions: Array<PromptQuestion> = Array<PromptQuestion>().concat(sharedInitialQs(defaultProjectName), [custom], sharedPostQs())
+    return questions
 }
 
 export function advancedQuestions(): Array<PromptQuestion> {
@@ -208,6 +246,20 @@ export function platformQuestions(): Array<PromptQuestion> {
     ]
 }
 
-export function testQuestions(): Array<PromptQuestion> {
-    return []
+export const language: {[key in ProjectTypeEnum]?: Function} = {
+    [ProjectTypeEnum.JAVASPRING]: javaQuestions
+}
+
+export const platform: {[key: string]: Function} = {
+}
+
+export function javaQuestions(): Array<PromptQuestion> {
+    return [
+        {
+            type: "text",
+            name: "javaTldNamespace",
+            message: "Package prefix - will be prepended to companyName.projectName previously supplied",
+            initial: "org",
+        }
+    ]
 }

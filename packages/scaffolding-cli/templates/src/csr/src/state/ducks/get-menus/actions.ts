@@ -1,3 +1,4 @@
+/* eslint-disable import/no-unresolved */
 import {Method} from "axios"
 import {action} from "typesafe-actions"
 import {GetMenuActionTypes, MenuItem} from "../../../interfaces/sagas.interface"
@@ -5,7 +6,7 @@ import {GetMenuActionTypes, MenuItem} from "../../../interfaces/sagas.interface"
 export const fetchMenus = () =>
     action(GetMenuActionTypes.FETCH_POSTS, [], {
         method: "get" as Method,
-        route: "/menu",
+        route: "/menu", // Todo: Point to deployed example API
     })
 
 export const fetchMenusSuccess = (data: MenuItem[]) =>

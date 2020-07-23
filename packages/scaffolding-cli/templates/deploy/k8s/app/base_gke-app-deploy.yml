@@ -16,7 +16,7 @@ metadata:
   namespace: ${namespace}
 type: Opaque
 stringData:
-  app_insights: ${app_insights_key}
+  foo: ${secret_example}
 
 ---
 
@@ -80,16 +80,21 @@ spec:
             - name: PORT
               value: '3000'
             - name: MENU_API_URL
-              value: 'https://api.demo.nonprod.amidostacks.com/api/menu'
+              value: 'https://dev-netcore-api.nonprod.amidostacks.com/api/menu'
             - name: APP_BASE_PATH
-              value: '${k8s_app_path}'
+              value: '${k8s_app_path:=""}'
             - name: APP_BASE_URL
               value: 'https://${dns_pointer}'
-            - name: APPINSIGHTS_INSTRUMENTATIONKEY
+            - name: SAMPLE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: appsecrets
-                  key: app_insights
+                  key: foo       
+            # - name: APPINSIGHTS_INSTRUMENTATIONKEY
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: appsecrets
+            #       key: app_insights
 
           ports:
             - name: http
@@ -186,20 +191,11 @@ metadata:
     part-of: ${project}
     environment: ${environment}
 spec:
-  # DEfaulting to same service
-  backend:
-    serviceName: ${resource_def_name}
-    servicePort: http
   rules:
   - host: ${dns_pointer}
     http:
       paths:
-        - path: ${k8s_app_path}/*
-          # pathType: Prefix
-          backend:
-            serviceName: ${resource_def_name}
-            servicePort: http
-        - path: ${k8s_app_path}
+        - path: ${k8s_app_path}*
           # pathType: Prefix
           backend:
             serviceName: ${resource_def_name}

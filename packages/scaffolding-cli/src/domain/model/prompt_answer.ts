@@ -5,6 +5,34 @@ export interface BusinessSection {
     component?: string
 }
 
+export const PlatformTypeEnum = {
+    AKS: 'aks',
+    GKE: 'gke',
+    EKS: 'eks',
+    ANY: 'any'
+} as const;
+
+export const DeploymentTypeEnum = {
+    TFS: 'azdevops',
+    JENKINS: 'jenkins'
+} as const;
+
+export const BackendStorageTypeEnum = {
+    AWSS3: 'awsS3',
+    AZUREBLOB: 'azureBlob',
+    GCPGCS: 'gcpGcs'
+} as const;
+
+export enum ProjectTypeEnum {
+    JAVASPRING = 'javaspring',
+    NETCORE = 'netcore',
+    SSR = 'ssr',
+    CSR = 'csr',
+    INFRA = 'infra',
+    TESTNETCORESELENIUM = 'testnetcoreselenium',
+    TESTJSTESTCAFE = 'testjstestcafe'
+}
+
 export interface CloudSection {
     region: string
     resourceGroup?: string
@@ -22,17 +50,22 @@ export interface NetworkingSection {
 
 
 export interface TerraformSection {
-    backendStorage: string
+    backendStorage: typeof BackendStorageTypeEnum[keyof typeof BackendStorageTypeEnum]
     backendStorageRg?: string
     backendStorageContainer?: string
 }
+
+export interface JavaSection {
+    namespace: string
+}
+
 export interface BaseAnswer {
     businessCompany: string
     projectName: string
-    projectType: string
+    projectType: typeof ProjectTypeEnum[keyof typeof ProjectTypeEnum]
     businessDomain: string
-    deployment: string
-    platform?: string
+    deployment: typeof DeploymentTypeEnum[keyof typeof DeploymentTypeEnum]
+    platform?: typeof PlatformTypeEnum[keyof typeof PlatformTypeEnum]
 }
 
 /**
@@ -51,6 +84,7 @@ export interface PromptAnswer extends BaseAnswer {
     terraformBackendStorageRg?: string
     terraformBackendStorageContainer?: string
     networkingBaseDomain?: string
+    javaTldNamespace?: string
 }
 
 export interface CliAnswerModel extends BaseAnswer {
@@ -61,4 +95,5 @@ export interface CliAnswerModel extends BaseAnswer {
     sourceControl: SourceControlSection
     networking: NetworkingSection
     // add more here if needed
+    [ProjectTypeEnum.JAVASPRING]?: JavaSection
 }

@@ -9,7 +9,7 @@ metadata:
 
 ---
 
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
   annotations:
@@ -40,7 +40,7 @@ spec:
       - backend:
           serviceName: ${resource_def_name}
           servicePort: 80
-        path: ${k8s_app_path}(/|$)(.*)
+        path: ${k8s_app_path:=''}(/|$)(.*)
   tls:
   - hosts:
     - ${tls_domain}
@@ -79,6 +79,19 @@ spec:
     environment: ${environment}
   sessionAffinity: None
 
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: appsecrets
+  namespace: ${namespace}
+type: Opaque
+stringData:
+  app_insights: ${app_insights_key}
+  next_public_token: ${next_public_token}
+  next_space_id: ${next_space_id}
+  auth_client_secret: ${auth_client_secret}
 ---
 
 apiVersion: apps/v1
@@ -156,18 +169,41 @@ spec:
             - name: PORT
               value: '3000'
             - name: MENU_API_URL
-              value: 'http://dev.amidostacks.com/api/menu'
+              value: ${api_url}
             - name: APP_BASE_PATH
-              value: '${k8s_app_path}'
+              value: ${k8s_app_path:=''}
             - name: APP_BASE_URL
-              value: 'https://${dns_pointer}'
-
+              value: https://${dns_pointer}
+            - name: AUTH0_DOMAIN
+              value: ${auth_domain}
+            - name: AUTH0_CLIENT_ID
+              value: ${auth_client_id}
+            - name: REDIS_HOST
+              value: "${redis_host}"
+            - name: REDIS_PORT
+              value: "${redis_port}"
+            - name: REDIS_ENABLED
+              value: "${redis_enabled}"
             - name: APPINSIGHTS_INSTRUMENTATIONKEY
-              value: ${APPINSIGHTS_INSTRUMENTATIONKEY}
-              # valueFrom:
-              #   secretKeyRef:
-              #     name: appinsights
-              #     key: INSTRUMENTATIONKEY
+              valueFrom:
+                secretKeyRef:
+                  name: appsecrets
+                  key: app_insights
+            - name: NEXT_PUBLIC_CONTENTFUL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: appsecrets
+                  key: next_public_token
+            - name: NEXT_PUBLIC_CONTENTFUL_SPACE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: appsecrets
+                  key: next_space_id
+            - name: AUTH0_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: appsecrets
+                  key: auth_client_secret
 
           # # Remove limits and let the Pods container get the default (800cpu)
           # resources:

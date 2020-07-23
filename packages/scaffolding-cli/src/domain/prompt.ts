@@ -1,14 +1,16 @@
 import {prompt} from "prompts"
 import {resolve, isAbsolute} from "path"
-import {readFileSync} from "fs"
+import { readFile } from "fs-extra"
 import {
     cliQuestions,
     computedSelection,
     platformQuestions,
     advancedQuestions,
+    cliTestQuestions,
+    language,
 } from "./config/questions"
 import {PromptQuestion} from "./model/prompt_question"
-import {PromptAnswer, CliAnswerModel} from "./model/prompt_answer"
+import {PromptAnswer, CliAnswerModel, ProjectTypeEnum} from "./model/prompt_answer"
 import {ExitMessage, CliOptions} from "./model/cli_response"
 import {WorkflowOptions, Workflow} from "./model/workflow"
 
@@ -21,53 +23,64 @@ const exitMessage: ExitMessage = {} as ExitMessage
  * @returns
  */
 export async function runCli(
-    defaultProjectName: string
+    defaultProjectName: string,
+    cliArgs: CliOptions
 ): Promise<ExitMessage> {
-    userSelection = await getFromCli(defaultProjectName)
+    userSelection = await getFromCli(defaultProjectName, cliArgs)
     cliModifiedSelection = computedSelection(userSelection)
-    return await selectFlow(cliModifiedSelection)
+    return selectFlow(cliModifiedSelection)
 }
 
 export async function runConfig(cliArgs: CliOptions): Promise<ExitMessage> {
-    cliModifiedSelection = await getFromConfig(cliArgs.configfile || "")
-    return await selectFlow(cliModifiedSelection)
+    cliModifiedSelection = await getFromConfig(cliArgs.config || "")
+    return selectFlow(cliModifiedSelection)
 }
 
-const onCancel = (prompt: any) => {
-    console.log("Never stop prompting!")
-    return true
+const onCancel = () => {
+    // Todo: ensure we have a flow for a user to force exit
+    // eslint-disable-next-line no-throw-literal
+    throw {
+        code: 0,
+        message: "Cancelling ...\nPlease re-run without interruption to complete the process"
+    }
 }
 
 /**
  * @private
  * @param defaultProjectName
  */
-async function getFromCli(defaultProjectName: string): Promise<PromptAnswer> {
-    let cliSelection: PromptAnswer
+async function getFromCli(defaultProjectName: string, cliArgs: CliOptions): Promise<PromptAnswer> {
     let initialQs: Array<PromptQuestion> = new Array<PromptQuestion>()
-    const questions: Array<PromptQuestion> = cliQuestions(defaultProjectName)
+    
+    // If the command is test, go through test flow:
+    if (cliArgs._[0] === "test") {
+        initialQs = cliTestQuestions(defaultProjectName)
+        const cliSelection = await prompt(initialQs, {onCancel})
+        return cliSelection
+    }
+
+    const questions = cliQuestions(defaultProjectName)
     questions.forEach(el => {
         initialQs = [...initialQs, el]
     })
 
-    cliSelection = await prompt(initialQs, {onCancel})
-    if (cliSelection.projectType.startsWith("test")) {
-        // let testSelection = await testAdvancedCliQuestion(cliSelection, testQuestions)
-        // return testSelection
-    } else {
-        let platformSelection = await advancedCliQuestion(
+    const cliSelection = await prompt(initialQs, {onCancel}) as PromptAnswer
+
+    if (cliSelection?.enableAdvanced) {
+        const advancedSelection = await advancedCliQuestion(
             cliSelection,
-            platformQuestions,
+            advancedQuestions,
         )
-        if (platformSelection?.enableAdvanced) {
-            let advancedSelection = await advancedCliQuestion(
-                platformSelection,
-                advancedQuestions,
+        if (language[cliSelection.projectType]) {
+            const languageAdvanced = await advancedCliQuestion(
+                advancedSelection,
+                language[cliSelection.projectType] as Function
             )
-            return advancedSelection
-        }
-        return platformSelection
+            return languageAdvanced
+        } 
+        return advancedSelection
     }
+
     return cliSelection
 }
 
@@ -91,13 +104,12 @@ async function advancedCliQuestion(
 async function getFromConfig(configPath: string): Promise<CliAnswerModel> {
     let configSelection: PromptAnswer
     if (isAbsolute(configPath)) {
-        configSelection = JSON.parse(readFileSync(configPath, "utf-8").trim())
+        configSelection = JSON.parse((await readFile(configPath, "utf-8")).trim())
     } else {
         configSelection = JSON.parse(
-            readFileSync(resolve(process.cwd(), configPath), "utf-8").trim(),
+            (await readFile(resolve(process.cwd(), configPath), "utf-8")).trim(),
         )
     }
-
     return computedSelection(configSelection)
 }
 
@@ -106,7 +118,7 @@ async function selectFlow(selection: CliAnswerModel): Promise<ExitMessage> {
 
     const workflows: Workflow = WorkflowOptions()
     try {
-        const response = await workflows[determinedChoice](selection)
+        const response = await workflows[determinedChoice.toLowerCase()](selection)
         exitMessage.code = response.code
         exitMessage.message = response.message
         if (response.code !== 0) {
@@ -120,7 +132,7 @@ async function selectFlow(selection: CliAnswerModel): Promise<ExitMessage> {
         // Uncaught Exceptions
         const exCaught = ex as ExitMessage
         exCaught.code = ex.code || -1
-        exCaught.message = ex.message
+        exCaught.message = `${ex.message}\n${ex.stack}`
         return exCaught
     }
 }
